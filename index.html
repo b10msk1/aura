@@ -48,7 +48,7 @@
         .custom-scrollbar::-webkit-scrollbar { width: 2px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); }
     </style>
- head>
+</head>
 <body>
     <div id="root"></div>
 
@@ -56,6 +56,7 @@
         const { useState, useEffect, useRef, useMemo } = React;
         const { motion, AnimatePresence, useSpring, useTransform } = Motion;
 
+        // --- KONFIGURATION (DINA IMGUR LÄNKAR) ---
         const VIDEO_LINKS = {
             INTRO: "https://i.imgur.com/PPjDdX9.mp4",
             TRANS_1: "https://i.imgur.com/Chxka6U.mp4", // 14 sekunder
@@ -67,7 +68,6 @@
         const STAGES = {
             1: { 
                 name: 'INITIAL KONTAKT', color: '#4f46e5', 
-                // Blom: Vi använder .jpeg här nu som du bad om
                 images: Array.from({length: 10}, (_, i) => `assets/steg1/bild${i+1}.jpeg`), 
                 video: VIDEO_LINKS.TRANS_1, 
                 videoDuration: 14000,
@@ -106,7 +106,7 @@
             if (type === 'heavy') window.navigator.vibrate([50, 30, 50]);
         };
 
-        // --- SUBTIL VFX: NEURAL DUST (Elektronik/Subtil rök) ---
+        // --- SUBTIL VFX: NEURAL DUST ---
         const VoiceAuraVFX = ({ stage, isSpeaking }) => {
             const mountRef = useRef(null);
             const pointsRef = useRef();
@@ -183,6 +183,7 @@
 
             const audioRef = useRef(new Audio());
 
+            // Bildspels-motor
             useEffect(() => {
                 const interval = setInterval(() => {
                     if (!isTransitioning && appState === 'main') {
@@ -233,7 +234,10 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             contents: [{ parts: [{ text: voicePrompt }] }],
-                            generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Kore" } } } }
+                            generationConfig: { 
+                                responseModalities: ["AUDIO"], 
+                                speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Kore" } } } 
+                            }
                         })
                     });
                     const data = await res.json();
@@ -425,7 +429,7 @@
                                         <input type="text" value={inputText} onChange={(e) => setInputText(e.target.value)} placeholder={isTransitioning ? "Synkroniserar..." : "Dela din frekvens..." } disabled={isTransitioning} className="w-full glass-dark py-7 px-10 rounded-full text-center text-sm tracking-wide text-white" autoComplete="off" />
                                     </form>
                                 </div>
-                                <div className="text-center text-[9px] opacity-10 uppercase tracking-[0.5em] mb-4 font-black italic text-white uppercase tracking-widest">Engine V4.2 // Debug Mode: .jpeg enabled</div>
+                                <div className="text-center text-[9px] opacity-10 uppercase tracking-[0.5em] mb-4 font-black italic text-white uppercase tracking-widest">Engine V4.2.1 // Debug Mode: .jpeg enabled</div>
                             </motion.div>
                         )}
                     </AnimatePresence>
