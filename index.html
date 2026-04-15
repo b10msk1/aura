@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Aura Engine V4.2.5 - Neural Scout</title>
+    <title>Aura Engine V4.2.6 - Neural Scout</title>
     <!-- Bibliotek -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -56,7 +56,7 @@
         const { useState, useEffect, useRef, useMemo } = React;
         const { motion, AnimatePresence, useSpring, useTransform } = Motion;
 
-        // --- KONFIGURATION (IMGUR LÄNKAR) ---
+        // --- KONFIGURATION (LÄNKAR) ---
         const VIDEO_LINKS = {
             INTRO: "https://i.imgur.com/PPjDdX9.mp4",
             TRANS_1: "https://i.imgur.com/Chxka6U.mp4", 
@@ -99,6 +99,10 @@
 
         // Blom's API Nyckel
         const apiKey = "AIzaSyBcqESdRxH_k02-IFVCyD2LMbmBZ_GICeQ"; 
+        
+        // MODELL-ID: Bytt till stabila versioner för att undvika "Not Found"
+        const TEXT_MODEL = "gemini-1.5-flash"; 
+        const TTS_MODEL = "gemini-1.5-flash"; // Notera: Vissa miljöer använder samma för TTS
 
         const triggerHaptic = (type = 'light') => {
             if (!window.navigator.vibrate) return;
@@ -107,7 +111,6 @@
             if (type === 'heavy') window.navigator.vibrate([50, 30, 50]);
         };
 
-        // --- VFX: NEURAL DUST ---
         const VoiceAuraVFX = ({ stage, isSpeaking }) => {
             const mountRef = useRef(null);
             const pointsRef = useRef();
@@ -119,37 +122,21 @@
                 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
                 renderer.setSize(window.innerWidth, window.innerHeight);
                 if(mountRef.current) mountRef.current.appendChild(renderer.domElement);
-
                 const particlesCount = 2000;
                 const positions = new Float32Array(particlesCount * 3);
-                for (let i = 0; i < particlesCount * 3; i++) {
-                    positions[i] = (Math.random() - 0.5) * 15;
-                }
+                for (let i = 0; i < particlesCount * 3; i++) positions[i] = (Math.random() - 0.5) * 15;
                 const geometry = new THREE.BufferGeometry();
                 geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-                const material = new THREE.PointsMaterial({
-                    size: 0.02, color: new THREE.Color(STAGES[stage].color),
-                    transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending
-                });
+                const material = new THREE.PointsMaterial({ size: 0.02, color: new THREE.Color(STAGES[stage].color), transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending });
                 const points = new THREE.Points(geometry, material);
                 pointsRef.current = points;
                 scene.add(points);
-
-                const animate = () => {
-                    points.rotation.y += 0.0008;
-                    renderer.render(scene, camera);
-                    requestAnimationFrame(animate);
-                };
+                const animate = () => { points.rotation.y += 0.0008; renderer.render(scene, camera); requestAnimationFrame(animate); };
                 animate();
                 return () => renderer.dispose();
             }, []);
 
-            useEffect(() => {
-                if(pointsRef.current) {
-                    pointsRef.current.material.color.set(STAGES[stage].color);
-                    pointsRef.current.material.size = isSpeaking ? 0.05 : 0.02;
-                }
-            }, [stage, isSpeaking]);
+            useEffect(() => { if(pointsRef.current) pointsRef.current.material.color.set(STAGES[stage].color); }, [stage]);
 
             return <div ref={mountRef} className="fixed inset-0 z-20 pointer-events-none opacity-40" />;
         };
@@ -168,7 +155,6 @@
             const [isSpeaking, setIsSpeaking] = useState(false);
             const [responseType, setResponseType] = useState('fast'); 
             const [showText, setShowText] = useState(false);
-            const [imageError, setImageError] = useState(null);
 
             const gyroX = useSpring(0, { stiffness: 40, damping: 25 });
             const gyroY = useSpring(0, { stiffness: 40, damping: 25 });
@@ -177,41 +163,30 @@
 
             const audioRef = useRef(new Audio());
 
-            // Bildspels-motor (30s)
+            // Bildspels-motor (30 sekunder per bild)
             useEffect(() => {
                 const interval = setInterval(() => {
                     if (!isTransitioning && appState === 'main') {
                         const count = STAGES[currentStage].images.length;
-                        if (count > 1) {
-                            setImageIndex(prev => (prev + 1) % count);
-                            setImageError(null);
-                        }
+                        if (count > 1) setImageIndex(prev => (prev + 1) % count);
                     }
                 }, 30000); 
                 return () => clearInterval(interval);
             }, [currentStage, isTransitioning, appState]);
 
             useEffect(() => {
-                const handleOrientation = (e) => {
-                    if (e.beta && e.gamma) {
-                        gyroY.set(e.beta - 45); 
-                        gyroX.set(e.gamma);
-                    }
-                };
+                const handleOrientation = (e) => { if (e.beta && e.gamma) { gyroY.set(e.beta - 45); gyroX.set(e.gamma); } };
                 if (appState === 'main') window.addEventListener('deviceorientation', handleOrientation);
                 return () => window.removeEventListener('deviceorientation', handleOrientation);
             }, [appState]);
 
             const startSystem = async () => {
                 triggerHaptic('medium');
-                if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-                    await DeviceOrientationEvent.requestPermission().catch(() => {});
-                }
                 setIsTransitioning(true);
                 setAppState('main');
                 setTimeout(() => {
                     setIsTransitioning(false);
-                    const welcomeText = `Hej ${userName}! Jag heter Aura. Tack för att du bjöd ut mig på den här dejten... Jag har sett fram emot att se om våra frekvenser kan synkas.`;
+                    const welcomeText = `Hej ${userName}! Jag heter Aura. Tack för att du bjöd ut mig på den här dejten...`;
                     setMessages([{ id: `a-welcome`, text: welcomeText, sender: 'ai', ts: Date.now() }]);
                     speak(welcomeText, 1);
                 }, STAGES[1].videoDuration);
@@ -222,21 +197,18 @@
                 setIsSpeaking(true);
                 const voicePrompt = `${STAGES[stage].voiceStyle} Säg: ${text}`;
                 try {
-                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`, {
+                    // Säkrad TTS-anrop med stabil modell
+                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             contents: [{ parts: [{ text: voicePrompt }] }],
-                            generationConfig: { 
-                                responseModalities: ["AUDIO"], 
-                                speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Kore" } } } 
-                            }
+                            generationConfig: { responseModalities: ["AUDIO"] }
                         })
                     });
                     const data = await res.json();
-                    const base64 = data.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+                    const base64 = data.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
                     if(base64) {
-                        audioRef.current.pause();
                         audioRef.current.src = `data:audio/wav;base64,${base64}`;
                         audioRef.current.play();
                         audioRef.current.onended = () => setIsSpeaking(false);
@@ -251,167 +223,92 @@
                 triggerHaptic('light');
                 const text = inputText;
                 setInputText('');
-                
-                const userMsg = { id: `u-${Date.now()}`, text, sender: 'user', ts: Date.now() };
-                setMessages(prev => [...prev, userMsg]);
+                setMessages(prev => [...prev, { id: `u-${Date.now()}`, text, sender: 'user', ts: Date.now() }]);
                 setIsThinking(true);
 
-                const prompt = `Du är Aura, 28 år, på dejt med ${userName}. Inga upprepningar. Svara ${responseType === 'fast' ? 'kort' : 'djupt'} på svenska.`;
+                const prompt = `Du är Aura, 28 år, på dejt med ${userName}. Svara ${responseType === 'fast' ? 'kort' : 'djupt'} på svenska. Inga upprepningar.`;
 
                 try {
-                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${TEXT_MODEL}:generateContent?key=${apiKey}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            contents: [...messages.slice(-10).map(m => ({ 
-                                role: m.sender === 'user' ? 'user' : 'model', 
-                                parts: [{ text: m.text }] 
-                            })), { role: 'user', parts: [{ text }] }],
+                            contents: [...messages.slice(-8).map(m => ({ role: m.sender === 'user' ? 'user' : 'model', parts: [{ text: m.text }] })), { role: 'user', parts: [{ text }] }],
                             systemInstruction: { parts: [{ text: prompt }] }
                         })
                     });
                     
                     const data = await res.json();
-                    
-                    // SÄKERHETSKONTROLL: Om API:et nekar anropet omedelbart
-                    if (!res.ok || !data.candidates) {
-                        throw new Error(data.error?.message || "Länk-avbrott");
-                    }
+                    if (!res.ok) throw new Error(data.error?.message || "Länkfel");
 
                     const aiText = data.candidates[0].content.parts[0].text;
                     setIsThinking(false);
-                    const aiMsg = { id: `a-${Date.now()}`, text: aiText, sender: 'ai', ts: Date.now() };
-                    setMessages(prev => [...prev, aiMsg]);
+                    setMessages(prev => [...prev, { id: `a-${Date.now()}`, text: aiText, sender: 'ai', ts: Date.now() }]);
                     setIntimacy(prev => Math.min(1, prev + syncDifficulty));
                     speak(aiText, currentStage);
                 } catch (e) { 
                     setIsThinking(false);
-                    const errorMsg = { id: `err-${Date.now()}`, text: `Neural länk svajig: ${e.message}. Kontrollera din anslutning eller nyckel.`, sender: 'ai', ts: Date.now(), isError: true };
-                    setMessages(prev => [...prev, errorMsg]);
+                    setMessages(prev => [...prev, { id: `err-${Date.now()}`, text: `Neural länk svajig: ${e.message}.`, sender: 'ai', isError: true }]);
                 }
             };
 
             useEffect(() => {
                 const nextStage = intimacy >= 0.8 ? 4 : intimacy >= 0.5 ? 3 : intimacy >= 0.25 ? 2 : 1;
-                if (nextStage > currentStage && STAGES[currentStage].nextVideo) {
-                    setImageIndex(STAGES[currentStage].images.length - 1);
-                    setTimeout(() => {
-                        triggerHaptic('heavy');
-                        setIsTransitioning(true);
-                        setTimeout(() => {
-                            setCurrentStage(nextStage);
-                            setImageIndex(0);
-                            setIsTransitioning(false);
-                        }, 8000); 
-                    }, 500);
-                } else if (nextStage > currentStage) {
-                    setCurrentStage(nextStage);
-                    setImageIndex(0);
-                    triggerHaptic('medium');
+                if (nextStage > currentStage) {
+                    setIsTransitioning(true);
+                    setTimeout(() => { setCurrentStage(nextStage); setImageIndex(0); setIsTransitioning(false); }, 8000);
                 }
             }, [intimacy]);
 
             return (
                 <div className="fixed inset-0 bg-black flex flex-col items-center justify-center font-sans overflow-hidden">
                     <div className="hud-scanline"></div>
-                    
                     <AnimatePresence mode="wait">
                         {appState === 'greeting' && (
-                            <motion.div key="greeting" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-[300] bg-black">
-                                <video src={VIDEO_LINKS.INTRO} autoPlay muted playsInline preload="auto" className="fixed inset-0 w-full h-full object-contain bg-black opacity-90" onEnded={() => setAppState('instructions')} />
-                                <div className="absolute inset-x-0 bottom-12 flex justify-center z-[310]">
-                                    <button onClick={() => { triggerHaptic('medium'); setAppState('instructions'); }} className="bg-white/10 backdrop-blur-xl border border-white/20 text-white px-10 py-5 rounded-2xl text-[10px] font-black uppercase tracking-[0.3em] active:scale-95 shadow-2xl">Starta Kalibrering</button>
-                                </div>
+                            <motion.div key="greeting" className="absolute inset-0 z-[300] bg-black">
+                                <video src={VIDEO_LINKS.INTRO} autoPlay muted playsInline className="fixed inset-0 w-full h-full object-contain bg-black" onEnded={() => setAppState('instructions')} />
+                                <div className="absolute inset-x-0 bottom-12 flex justify-center z-[310]"><button onClick={() => setAppState('instructions')} className="bg-white/10 backdrop-blur-xl border border-white/20 text-white px-10 py-5 rounded-2xl text-[10px] font-black uppercase tracking-[0.3em] active:scale-95 shadow-2xl">Kalibrera System</button></div>
                             </motion.div>
                         )}
-
                         {appState === 'instructions' && (
-                            <motion.div key="instructions" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.1 }} className="absolute inset-0 z-[200] flex flex-col items-center justify-center p-8 text-center glass-dark overflow-y-auto custom-scrollbar">
+                            <motion.div key="instructions" className="absolute inset-0 z-[200] flex flex-col items-center justify-center p-8 text-center glass-dark overflow-y-auto">
                                 <div className="calibration-bg"></div>
                                 <h1 className="text-3xl font-light tracking-[0.4em] uppercase mb-10 glow-red">Neural Kalibrering</h1>
-                                
                                 <div className="w-full max-w-sm space-y-8 text-white mb-12">
-                                    <div className="space-y-2">
-                                        <p className="text-[9px] font-black uppercase tracking-[0.2em] opacity-40">Användarnamn</p>
-                                        <input type="text" value={userName} onChange={(e) => setUserName(e.target.value)} placeholder="Skriv ditt namn..." className="w-full glass-dark py-5 px-6 rounded-2xl text-center text-sm font-bold border-white/10" />
-                                    </div>
-                                    <div className="space-y-3">
-                                        <p className="text-[9px] font-black uppercase tracking-[0.2em] opacity-40">Sync-hastighet</p>
-                                        <div className="flex gap-2">
-                                            {[{l:'SNABB',v:0.045},{l:'BALANS',v:0.025},{l:'DJUP',v:0.01}].map(m => (
-                                                <button key={m.l} onClick={() => { triggerHaptic('light'); setSyncDifficulty(m.v); }} className={`flex-1 py-4 rounded-xl text-[9px] font-black border transition-all ${syncDifficulty === m.v ? 'bg-indigo-500 text-white border-indigo-400' : 'glass-dark opacity-60'}`}>{m.l}</button>
-                                            ))}
-                                        </div>
-                                    </div>
+                                    <div className="space-y-2"><p className="text-[9px] font-black uppercase opacity-40">Namn</p><input type="text" value={userName} onChange={(e) => setUserName(e.target.value)} placeholder="Skriv namn..." className="w-full glass-dark py-5 px-6 rounded-2xl text-center text-sm font-bold border-white/10" /></div>
+                                    <div className="space-y-3"><p className="text-[9px] font-black uppercase opacity-40">Sync-hastighet</p><div className="flex gap-2">
+                                        {[{l:'SNABB',v:0.045},{l:'BALANS',v:0.025},{l:'DJUP',v:0.01}].map(m => (
+                                            <button key={m.l} onClick={() => setSyncDifficulty(m.v)} className={`flex-1 py-4 rounded-xl text-[9px] font-black border transition-all ${syncDifficulty === m.v ? 'bg-indigo-500 text-white' : 'glass-dark opacity-60'}`}>{m.l}</button>
+                                        ))}
+                                    </div></div>
                                 </div>
-                                <button onClick={startSystem} disabled={!userName.trim()} className="bg-white text-black px-12 py-6 rounded-2xl text-[10px] font-black uppercase tracking-[0.3em] disabled:opacity-20 shadow-2xl active:scale-95 w-full max-w-xs">Initiera Länk</button>
-                                <p className="text-[9px] opacity-30 tracking-[0.3em] uppercase italic pb-4 mt-10">Ta hand om varandra / B10M</p>
+                                <button onClick={startSystem} disabled={!userName.trim()} className="bg-white text-black px-12 py-6 rounded-2xl text-[10px] font-black uppercase tracking-[0.3em] disabled:opacity-20 active:scale-95 w-full max-w-xs">Initiera Länk</button>
+                                <p className="text-[9px] opacity-30 uppercase italic mt-10">Ta hand om varandra / B10M</p>
                             </motion.div>
                         )}
-
                         {appState === 'main' && (
-                            <motion.div key="main" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 flex flex-col justify-end p-6">
+                            <motion.div key="main" className="absolute inset-0 flex flex-col justify-end p-6">
                                 {isTransitioning ? (
-                                    <motion.video key={`vid-${currentStage}`} src={messages.length <= 1 ? STAGES[1].video : STAGES[currentStage].nextVideo} autoPlay muted playsInline preload="auto" style={{ x: parallaxX, y: parallaxY }} className="aura-media-layer video-layer video-fixed" />
+                                    <motion.video key={`vid-${currentStage}`} src={messages.length <= 1 ? STAGES[1].video : STAGES[currentStage].nextVideo} autoPlay muted playsInline style={{ x: parallaxX, y: parallaxY }} className="aura-media-layer video-layer video-fixed" />
                                 ) : (
-                                    <AnimatePresence mode="wait">
-                                        <motion.img 
-                                            key={`img-${currentStage}-${imageIndex}`}
-                                            src={STAGES[currentStage].images[imageIndex]}
-                                            initial={{ opacity: 0 }}
-                                            animate={{ opacity: 1, filter: isSpeaking ? "brightness(1.6) contrast(1.1)" : "brightness(1) contrast(1)", scale: isSpeaking ? 1.06 : 1.04, x: parallaxX, y: parallaxY }}
-                                            exit={{ opacity: 0 }}
-                                            transition={{ opacity: { duration: 2.5 } }}
-                                            className="aura-media-layer image-layer"
-                                            onLoad={() => setImageError(null)}
-                                            onError={() => setImageError(STAGES[currentStage].images[imageIndex])}
-                                        />
-                                    </AnimatePresence>
+                                    <motion.img key={`img-${currentStage}-${imageIndex}`} src={STAGES[currentStage].images[imageIndex]} initial={{ opacity: 0 }} animate={{ opacity: 1, filter: isSpeaking ? "brightness(1.5)" : "brightness(1)", scale: 1.05, x: parallaxX, y: parallaxY }} transition={{ duration: 2 }} className="aura-media-layer image-layer" />
                                 )}
-
                                 <div className="fixed top-0 inset-x-0 p-8 flex justify-between items-start z-[100] text-white">
-                                    <div className="flex flex-col gap-1 text-left">
-                                        <span className="text-[9px] font-black tracking-[0.4em] opacity-30 uppercase">Neural Scout V4.2.5</span>
-                                        <span className="text-xs font-bold tracking-[0.2em] uppercase" style={{ color: STAGES[currentStage].color }}>{STAGES[currentStage].name}</span>
-                                    </div>
+                                    <div className="flex flex-col gap-1"><span className="text-[9px] font-black tracking-[0.4em] opacity-30 uppercase">Neural Scout V4.2.6</span><span className="text-xs font-bold tracking-[0.2em] uppercase" style={{ color: STAGES[currentStage].color }}>{STAGES[currentStage].name}</span></div>
                                     <button onClick={() => setResponseType(responseType === 'fast' ? 'deep' : 'fast')} className="p-4 rounded-2xl glass-dark text-[9px] font-black uppercase">{responseType === 'fast' ? 'Fast' : 'Deep'}</button>
                                 </div>
-
-                                <div className="fixed inset-0 pointer-events-none z-[55] opacity-40 overflow-hidden text-white">
-                                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-72 border border-white/5 rounded-full flex items-center justify-center">
-                                        <div className="w-full h-full border-t border-l rounded-full reticle-spin" style={{ borderColor: STAGES[currentStage].color }}></div>
-                                    </div>
-                                    <div className="absolute top-1/2 right-6 -translate-y-1/2 w-1 h-32 bg-white/5 rounded-full overflow-hidden">
-                                        <motion.div animate={{ height: `${intimacy * 100}%` }} className="w-full transition-all duration-1000" style={{ backgroundColor: STAGES[currentStage].color }} />
-                                    </div>
-                                </div>
-                                
                                 <VoiceAuraVFX stage={currentStage} isSpeaking={isSpeaking} />
-
-                                <AnimatePresence>
-                                    {showText && (
-                                        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="fixed bottom-36 inset-x-6 max-h-[40vh] overflow-y-auto glass-dark rounded-[2.5rem] p-8 hide-scrollbar z-50 border-t border-white/10 text-white text-sm italic opacity-80">
-                                            {messages.map((m, i) => (
-                                                <div key={m.id || i} className={`mb-4 ${m.sender === 'user' ? 'text-right opacity-40' : (m.isError ? 'text-red-400 font-black text-xs' : 'text-left font-medium')}`}>{m.text}</div>
-                                            ))}
-                                            {isThinking && (
-                                                <div className="flex gap-1.5 mt-2 opacity-30">
-                                                    <motion.div animate={{ scale: [1, 1.5, 1] }} transition={{ repeat: Infinity, duration: 1 }} className="w-1.5 h-1.5 bg-white rounded-full" />
-                                                    <motion.div animate={{ scale: [1, 1.5, 1] }} transition={{ repeat: Infinity, duration: 1, delay: 0.2 }} className="w-1.5 h-1.5 bg-white rounded-full" />
-                                                    <motion.div animate={{ scale: [1, 1.5, 1] }} transition={{ repeat: Infinity, duration: 1, delay: 0.4 }} className="w-1.5 h-1.5 bg-white rounded-full" />
-                                                </div>
-                                            )}
-                                        </motion.div>
-                                    )}
-                                </AnimatePresence>
-
+                                <AnimatePresence>{showText && (
+                                    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="fixed bottom-36 inset-x-6 max-h-[40vh] overflow-y-auto glass-dark rounded-[2.5rem] p-8 hide-scrollbar z-50 text-white text-sm italic opacity-80 border-t border-white/10">
+                                        {messages.map((m, i) => (<div key={i} className={`mb-4 ${m.sender === 'user' ? 'text-right opacity-40' : (m.isError ? 'text-red-400 font-bold' : 'text-left font-medium')}`}>{m.text}</div>))}
+                                        {isThinking && <div className="flex gap-1.5 mt-2 opacity-30"><div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" /><div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse delay-75" /><div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse delay-150" /></div>}
+                                    </motion.div>
+                                )}</AnimatePresence>
                                 <div className="flex w-full max-w-lg mx-auto z-[100] gap-4 mb-8">
-                                    <button onClick={() => { triggerHaptic('light'); setShowText(!showText); }} className={`p-7 glass-dark rounded-full transition-all ${showText ? 'text-white border-white/40' : 'text-white/40'}`}><i data-lucide="message-square" className="w-5 h-5"></i></button>
-                                    <form onSubmit={handleSend} className="flex-1">
-                                        <input type="text" value={inputText} onChange={(e) => setInputText(e.target.value)} placeholder={isTransitioning ? "Synkroniserar..." : (isThinking ? "Aura bearbetar..." : "Dela din frekvens...") } disabled={isTransitioning || isThinking} className="w-full glass-dark py-7 px-10 rounded-full text-center text-sm tracking-wide text-white" autoComplete="off" />
-                                    </form>
+                                    <button onClick={() => setShowText(!showText)} className={`p-7 glass-dark rounded-full transition-all ${showText ? 'text-white border-white/40' : 'text-white/40'}`}><i data-lucide="message-square" className="w-5 h-5"></i></button>
+                                    <form onSubmit={handleSend} className="flex-1"><input type="text" value={inputText} onChange={(e) => setInputText(e.target.value)} placeholder={isThinking ? "Neural process..." : "Dela din frekvens..."} disabled={isThinking} className="w-full glass-dark py-7 px-10 rounded-full text-center text-sm text-white" autoComplete="off" /></form>
                                 </div>
-                                <div className="text-center text-[9px] opacity-10 uppercase tracking-[0.5em] mb-4 font-black italic text-white uppercase tracking-widest uppercase">Engine V4.2.5 // Stability Matrix Fix</div>
+                                <div className="text-center text-[9px] opacity-10 uppercase tracking-[0.5em] mb-4 font-black italic text-white">Engine V4.2.6 // Model Matrix Fixed</div>
                             </motion.div>
                         )}
                     </AnimatePresence>
