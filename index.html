@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Aura Engine V4.2.7 - Neural Scout</title>
+    <title>Aura Engine V4.2.8 - Neural Scout</title>
     <!-- Bibliotek -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -97,7 +97,6 @@
             }
         };
 
-        // Blom's API Nyckel
         const apiKey = "AIzaSyBcqESdRxH_k02-IFVCyD2LMbmBZ_GICeQ"; 
 
         const triggerHaptic = (type = 'light') => {
@@ -168,8 +167,6 @@
             const [responseType, setResponseType] = useState('fast'); 
             const [showText, setShowText] = useState(false);
             const [imageError, setImageError] = useState(null);
-            
-            // NYHET: Dynamisk modell-väljare för stabilitet
             const [activeModel, setActiveModel] = useState('gemini-1.5-flash');
 
             const gyroX = useSpring(0, { stiffness: 40, damping: 25 });
@@ -206,12 +203,18 @@
                 }
                 setIsTransitioning(true);
                 setAppState('main');
-                setTimeout(() => {
+                
+                // Om vi startar om från inställningar, skicka inte välkomstmeddelande igen om det redan finns historik
+                if (messages.length === 0) {
+                    setTimeout(() => {
+                        setIsTransitioning(false);
+                        const welcomeText = `Hej ${userName}! Jag heter Aura. Tack för att du bjöd ut mig på den här dejten... Jag har sett fram emot att se om våra frekvenser kan synkas.`;
+                        setMessages([{ id: `a-welcome`, text: welcomeText, sender: 'ai', ts: Date.now() }]);
+                        speak(welcomeText, 1);
+                    }, STAGES[1].videoDuration);
+                } else {
                     setIsTransitioning(false);
-                    const welcomeText = `Hej ${userName}! Jag heter Aura. Tack för att du bjöd ut mig på den här dejten... Jag har sett fram emot att se om våra frekvenser kan synkas.`;
-                    setMessages([{ id: `a-welcome`, text: welcomeText, sender: 'ai', ts: Date.now() }]);
-                    speak(welcomeText, 1);
-                }, STAGES[1].videoDuration);
+                }
             };
 
             const speak = async (text, stage) => {
@@ -315,7 +318,6 @@
                                         </div>
                                     </div>
 
-                                    {/* ARKITEKTENS FIX: MODELLVÄLJARE */}
                                     <div className="space-y-2">
                                         <p className="text-[9px] font-black uppercase opacity-40 text-amber-500">Neural Kärna (Stabilitet)</p>
                                         <div className="flex gap-1">
@@ -323,17 +325,7 @@
                                                 <button key={m} onClick={() => setActiveModel(m)} className={`flex-1 py-2 rounded-lg text-[7px] font-black border transition-all ${activeModel === m ? 'bg-amber-500/40 text-white border-amber-400' : 'glass-dark opacity-30'}`}>{m.toUpperCase()}</button>
                                             ))}
                                         </div>
-                                        <p className="text-[7px] opacity-30 italic mt-1 uppercase tracking-widest">Testa 'GEMINI-PRO' om Flash inte svarar.</p>
-                                    </div>
-
-                                    <div className="space-y-3 glass-dark p-6 rounded-[2rem] border border-white/10 text-[8px] font-bold text-left">
-                                        <p className="text-[9px] font-black uppercase opacity-50 mb-2 border-b border-white/5 pb-2 text-center">Systemlogik</p>
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <div className="space-y-1"><span className="text-indigo-400">1. Kontakt</span><p className="opacity-40 font-normal">Formell länk.</p></div>
-                                            <div className="space-y-1"><span className="text-amber-400">2. Förtroende</span><p className="opacity-40 font-normal">Personligt djup.</p></div>
-                                            <div className="space-y-1"><span className="text-rose-500">3. Intimitet</span><p className="opacity-40 font-normal">Nära närvaro.</p></div>
-                                            <div className="space-y-1"><span className="text-white">4. Synk</span><p className="opacity-40 font-normal">Total närhet.</p></div>
-                                        </div>
+                                        <p className="text-[7px] opacity-30 italic mt-1 uppercase tracking-widest leading-relaxed">Byt kärna om länken nekas.</p>
                                     </div>
                                 </div>
 
@@ -362,21 +354,18 @@
                                     </AnimatePresence>
                                 )}
 
-                                {imageError && !isTransitioning && (
-                                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[500] bg-red-900/90 border border-red-500 p-6 rounded-2xl text-center backdrop-blur-md shadow-2xl w-72">
-                                        <p className="text-white font-black text-[10px] mb-2 uppercase tracking-widest glow-red">⚠️ Systemfel: Bild saknas ⚠️</p>
-                                        <p className="text-white/80 text-[8px] font-mono bg-black/50 p-3 rounded mb-4 break-all leading-relaxed">{imageError}</p>
-                                        <button onClick={() => window.open(imageError, '_blank')} className="w-full bg-white text-black py-2 rounded-lg text-[9px] font-black uppercase mb-2">Testa Länk</button>
-                                        <p className="text-white/40 text-[7px] italic uppercase tracking-widest">Säkerställ .jpeg format på GitHub</p>
-                                    </div>
-                                )}
-
                                 <div className="fixed top-0 inset-x-0 p-8 flex justify-between items-start z-[100] text-white">
                                     <div className="flex flex-col gap-1 text-left">
-                                        <span className="text-[9px] font-black tracking-[0.4em] opacity-30 uppercase">Neural Scout V4.2.7</span>
+                                        <span className="text-[9px] font-black tracking-[0.4em] opacity-30 uppercase">Neural Scout V4.2.8</span>
                                         <span className="text-xs font-bold tracking-[0.2em] uppercase" style={{ color: STAGES[currentStage].color }}>{STAGES[currentStage].name}</span>
                                     </div>
-                                    <button onClick={() => setResponseType(responseType === 'fast' ? 'deep' : 'fast')} className="p-4 rounded-2xl glass-dark text-[9px] font-black uppercase">{responseType === 'fast' ? 'Fast' : 'Deep'}</button>
+                                    <div className="flex gap-2">
+                                        {/* TILLBAKA-KNAPP / SYSTEMINSTÄLLNINGAR */}
+                                        <button onClick={() => { triggerHaptic('medium'); setAppState('instructions'); }} className="p-4 rounded-2xl glass-dark text-white/40 hover:text-white transition-all" title="Systeminställningar">
+                                            <i data-lucide="settings-2" className="w-5 h-5"></i>
+                                        </button>
+                                        <button onClick={() => setResponseType(responseType === 'fast' ? 'deep' : 'fast')} className="p-4 rounded-2xl glass-dark text-[9px] font-black uppercase">{responseType === 'fast' ? 'Fast' : 'Deep'}</button>
+                                    </div>
                                 </div>
 
                                 <div className="fixed inset-0 pointer-events-none z-[55] opacity-40 overflow-hidden text-white">
@@ -406,7 +395,7 @@
                                         <input type="text" value={inputText} onChange={(e) => setInputText(e.target.value)} placeholder={isThinking ? "Neural process..." : "Dela din frekvens..."} disabled={isThinking} className="w-full glass-dark py-7 px-10 rounded-full text-center text-sm text-white shadow-2xl" autoComplete="off" />
                                     </form>
                                 </div>
-                                <div className="text-center text-[9px] opacity-10 uppercase tracking-[0.5em] mb-4 font-black italic text-white">Engine V4.2.7 // Architect: B10M</div>
+                                <div className="text-center text-[9px] opacity-10 uppercase tracking-[0.5em] mb-4 font-black italic text-white">Engine V4.2.8 // Backlink Architecture</div>
                             </motion.div>
                         )}
                     </AnimatePresence>
