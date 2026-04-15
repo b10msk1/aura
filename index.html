@@ -58,10 +58,10 @@
 
         const VIDEO_LINKS = {
             INTRO: "https://i.imgur.com/PPjDdX9.mp4",
-            TRANS_1: "https://i.imgur.com/Chxka6U.mp4", // 14 sekunder (Nivå 1 Start)
-            TRANS_2: "https://i.imgur.com/PXYERwx.mp4", // 8 sekunder (1->2)
-            TRANS_3: "https://i.imgur.com/KkEzCrW.mp4", // 8 sekunder (2->3)
-            TRANS_4: "https://i.imgur.com/aiZYzCk.mp4"  // 8 sekunder (3->4)
+            TRANS_1: "https://i.imgur.com/Chxka6U.mp4", // 14 sekunder
+            TRANS_2: "https://i.imgur.com/PXYERwx.mp4", // 8 sekunder
+            TRANS_3: "https://i.imgur.com/KkEzCrW.mp4", // 8 sekunder
+            TRANS_4: "https://i.imgur.com/aiZYzCk.mp4"  // 8 sekunder
         };
 
         const STAGES = {
@@ -105,7 +105,6 @@
             if (type === 'heavy') window.navigator.vibrate([50, 30, 50]);
         };
 
-        // --- SUBTIL VFX: NEURAL DUST (ELEKTRONIK/RÖK) ---
         const VoiceAuraVFX = ({ stage, isSpeaking }) => {
             const mountRef = useRef(null);
             const pointsRef = useRef();
@@ -145,7 +144,7 @@
                     requestAnimationFrame(animate);
                 };
                 animate();
-                return () => renderer.dispose();
+                return () => { if(renderer) renderer.dispose(); };
             }, []);
 
             useEffect(() => {
@@ -173,7 +172,7 @@
             const [isSpeaking, setIsSpeaking] = useState(false);
             const [responseType, setResponseType] = useState('fast'); 
             const [showText, setShowText] = useState(false);
-            const [imageError, setImageError] = useState(false);
+            const [imageError, setImageError] = useState(null);
 
             const gyroX = useSpring(0, { stiffness: 40, damping: 25 });
             const gyroY = useSpring(0, { stiffness: 40, damping: 25 });
@@ -182,13 +181,14 @@
 
             const audioRef = useRef(new Audio());
 
-            // Bildspels-motor (Loopar Var 12e sekund)
+            // Slideshow Logic
             useEffect(() => {
                 const interval = setInterval(() => {
                     if (!isTransitioning && appState === 'main') {
                         const count = STAGES[currentStage].images.length;
                         if (count > 1) {
                             setImageIndex(prev => (prev + 1) % count);
+                            setImageError(null); // Reset error state on change
                         }
                     }
                 }, 12000); 
@@ -214,10 +214,9 @@
                 setIsTransitioning(true);
                 setAppState('main');
                 
-                // VÄNTAR 14 SEKUNDER FÖR NIVÅ 1
                 setTimeout(() => {
                     setIsTransitioning(false);
-                    const welcomeText = `Hej ${userName}! Jag heter Aura och jag är 28 år gammal. Tack för att du bjöd ut mig på den här dejten...`;
+                    const welcomeText = `Hej ${userName}! Jag heter Aura. Tack för att du bjöd ut mig på den här dejten...`;
                     setMessages([{ id: 'welcome', text: welcomeText, sender: 'ai', ts: Date.now() }]);
                     speak(welcomeText, 1);
                 }, STAGES[1].videoDuration);
@@ -279,7 +278,6 @@
                 } catch (e) { setIsThinking(false); }
             };
 
-            // SEAMLESS HANDSHAKE LOGIC
             useEffect(() => {
                 const nextStage = intimacy >= 0.8 ? 4 : intimacy >= 0.5 ? 3 : intimacy >= 0.25 ? 2 : 1;
                 if (nextStage > currentStage && STAGES[currentStage].nextVideo) {
@@ -291,7 +289,7 @@
                             setCurrentStage(nextStage);
                             setImageIndex(0);
                             setIsTransitioning(false);
-                        }, 8000); // 8 sekunder för nivå-övergångar
+                        }, STAGES[currentStage].videoDuration); // DYNAMISK TID BASERAT PÅ VIDEO
                     }, 500);
                 } else if (nextStage > currentStage) {
                     setCurrentStage(nextStage);
@@ -347,7 +345,7 @@
                             <motion.div key="main" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 flex flex-col justify-end p-6">
                                 {isTransitioning ? (
                                     <motion.video 
-                                        key={messages.length === 0 ? STAGES[1].video : STAGES[currentStage].nextVideo} 
+                                        key={`vid-${currentStage}-${messages.length}`} 
                                         src={messages.length === 0 ? STAGES[1].video : STAGES[currentStage].nextVideo} 
                                         autoPlay muted playsInline preload="auto"
                                         style={{ x: parallaxX, y: parallaxY }} 
@@ -366,19 +364,29 @@
                                             exit={{ opacity: 0 }}
                                             transition={{ opacity: { duration: 2.5 } }}
                                             className="aura-media-layer image-layer"
-                                            onLoad={() => setImageError(false)}
-                                            onError={() => setImageError(true)}
+                                            onLoad={() => setImageError(null)}
+                                            onError={() => setImageError(STAGES[currentStage].images[imageIndex])}
                                         />
                                     </AnimatePresence>
                                 )}
 
                                 {imageError && !isTransitioning && (
-                                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[500] bg-red-900/80 border border-red-500 p-6 rounded-2xl text-center backdrop-blur-md shadow-2xl w-64">
-                                        <p className="text-white font-black text-[10px] mb-2 uppercase tracking-widest glow-red">⚠️ Hittar inte bilden ⚠️</p>
-                                        <p className="text-white/80 text-[8px] font-mono bg-black/50 p-2 rounded mb-4 break-all">{STAGES[currentStage].images[imageIndex]}</p>
-                                        <p className="text-white/40 text-[7px] text-left leading-tight">
-                                            Säkerställ att filen heter exakt bild{imageIndex+1}.jpg inuti mappen assets/steg{currentStage}/.
+                                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[500] bg-red-900/90 border border-red-500 p-6 rounded-2xl text-center backdrop-blur-md shadow-2xl w-72">
+                                        <p className="text-white font-black text-[10px] mb-2 uppercase tracking-widest glow-red">⚠️ Systemfel: Bild saknas ⚠️</p>
+                                        <p className="text-white/80 text-[8px] font-mono bg-black/50 p-3 rounded mb-4 break-all leading-relaxed">
+                                            Letar efter:<br/>{imageError}
                                         </p>
+                                        <div className="space-y-2">
+                                            <button 
+                                                onClick={() => window.open(imageError, '_blank')}
+                                                className="w-full bg-white text-black py-2 rounded-lg text-[9px] font-black uppercase"
+                                            >
+                                                Testa Länken (404-koll)
+                                            </button>
+                                            <p className="text-white/40 text-[7px] text-left leading-tight italic">
+                                                * Om länken ovan ger 404, kontrollera att mappen 'assets' och 'steg1' har små bokstäver på GitHub.
+                                            </p>
+                                        </div>
                                     </div>
                                 )}
 
@@ -394,6 +402,15 @@
                                     </button>
                                 </div>
 
+                                <div className="fixed inset-0 pointer-events-none z-[55] opacity-40 overflow-hidden text-white">
+                                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-72 border border-white/5 rounded-full flex items-center justify-center">
+                                        <div className="w-full h-full border-t border-l rounded-full reticle-spin" style={{ borderColor: STAGES[currentStage].color }}></div>
+                                    </div>
+                                    <div className="absolute top-1/2 right-6 -translate-y-1/2 w-1 h-32 bg-white/5 rounded-full overflow-hidden">
+                                        <motion.div animate={{ height: `${intimacy * 100}%` }} className="w-full transition-all duration-1000" style={{ backgroundColor: STAGES[currentStage].color }} />
+                                    </div>
+                                </div>
+                                
                                 <AnimatePresence>
                                     {showText && (
                                         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="fixed bottom-36 inset-x-6 max-h-[40vh] overflow-y-auto glass-dark rounded-[2.5rem] p-8 hide-scrollbar z-50 border-t border-white/10 text-white text-sm italic opacity-80">
@@ -410,7 +427,7 @@
                                         <input type="text" value={inputText} onChange={(e) => setInputText(e.target.value)} placeholder={isTransitioning ? "Synkroniserar..." : "Dela din frekvens..." } disabled={isTransitioning} className="w-full glass-dark py-7 px-10 rounded-full text-center text-sm tracking-wide text-white" autoComplete="off" />
                                     </form>
                                 </div>
-                                <div className="text-center text-[9px] opacity-10 uppercase tracking-[0.5em] mb-4 font-black italic text-white uppercase tracking-widest">Engine V4.2 // Neural Dust VFX Active</div>
+                                <div className="text-center text-[9px] opacity-10 uppercase tracking-[0.5em] mb-4 font-black italic text-white uppercase tracking-widest">Engine V4.2 // Debug Mode Enabled</div>
                             </motion.div>
                         )}
                     </AnimatePresence>
