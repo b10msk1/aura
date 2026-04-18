@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Aura Engine V4.3.1 - Neural Scout</title>
+    <title>Aura Engine V4.4.2 - Neural Scout</title>
     <!-- Bibliotek -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -15,7 +15,7 @@
     
     <style>
         body { margin: 0; background-color: #000; overflow: hidden; color: white; font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; }
-        .glass-dark { background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .glass-dark { background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(35px); -webkit-backdrop-filter: blur(35px); border: 1px solid rgba(255, 255, 255, 0.1); }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         input:focus { outline: none; }
         .glow-red { text-shadow: 0 0 25px rgba(225, 29, 72, 0.6); }
@@ -33,7 +33,7 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useRef, useMemo } = React;
+        const { useState, useEffect, useRef } = React;
         const { motion, AnimatePresence, useSpring, useTransform } = Motion;
 
         const VIDEO_LINKS = {
@@ -51,34 +51,8 @@
             4: { name: 'FULLSTÄNDIG SYNK', color: '#ffffff', images: Array.from({length: 12}, (_, i) => `assets/steg4/bild${i+1}.jpeg`), videoDuration: 8000, voiceStyle: "Viska extremt mjukt och nära." }
         };
 
-        // Blom: Här är din uppdaterade nyckel
+        // Blom's API Nyckel
         const apiKey = "AIzaSyCu1GxY3R9TqyP5yXAfhgtWpTVGpcFIgwI"; 
-
-        const VoiceAuraVFX = ({ stage, isSpeaking }) => {
-            const mountRef = useRef(null);
-            const pointsRef = useRef();
-            useEffect(() => {
-                const scene = new THREE.Scene();
-                const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-                camera.position.z = 5;
-                const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-                renderer.setSize(window.innerWidth, window.innerHeight);
-                if(mountRef.current) mountRef.current.appendChild(renderer.domElement);
-                const positions = new Float32Array(2000 * 3);
-                for (let i = 0; i < 2000 * 3; i++) positions[i] = (Math.random() - 0.5) * 15;
-                const geometry = new THREE.BufferGeometry();
-                geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-                const material = new THREE.PointsMaterial({ size: 0.02, color: new THREE.Color(STAGES[stage].color), transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending });
-                const points = new THREE.Points(geometry, material);
-                pointsRef.current = points;
-                scene.add(points);
-                const animate = () => { points.rotation.y += 0.0008; renderer.render(scene, camera); requestAnimationFrame(animate); };
-                animate();
-                return () => renderer.dispose();
-            }, []);
-            useEffect(() => { if(pointsRef.current) pointsRef.current.material.color.set(STAGES[stage].color); }, [stage]);
-            return <div ref={mountRef} className="fixed inset-0 z-20 pointer-events-none opacity-40" />;
-        };
 
         function App() {
             const [appState, setAppState] = useState('greeting'); 
@@ -95,7 +69,9 @@
             const [responseType, setResponseType] = useState('fast'); 
             const [showText, setShowText] = useState(false);
             
-            const [activeModel, setActiveModel] = useState('gemini-1.5-flash');
+            // Blom: Här har jag lagt in namnet från din kodsnutt som standard!
+            const [activeModel, setActiveModel] = useState('gemini-3-flash-preview');
+            const [customModel, setCustomModel] = useState('');
 
             const audioRef = useRef(new Audio());
             const gyroX = useSpring(0, { stiffness: 40, damping: 25 });
@@ -103,13 +79,15 @@
             const parallaxX = useTransform(gyroX, [-30, 30], ["-2%", "2%"]);
             const parallaxY = useTransform(gyroY, [-30, 30], ["-2%", "2%"]);
 
+            const currentModel = customModel || activeModel;
+
             useEffect(() => {
                 const interval = setInterval(() => {
                     if (!isTransitioning && appState === 'main') {
                         const count = STAGES[currentStage].images.length;
                         setImageIndex(prev => (prev + 1) % count);
                     }
-                }, 30000); // 30 sekunder per bild
+                }, 30000); 
                 return () => clearInterval(interval);
             }, [currentStage, isTransitioning, appState]);
 
@@ -118,7 +96,7 @@
                 setIsSpeaking(true);
                 const voicePrompt = `${STAGES[stage].voiceStyle} Säg: ${text}`;
                 try {
-                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${apiKey}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ contents: [{ parts: [{ text: voicePrompt }] }], generationConfig: { responseModalities: ["AUDIO"] } })
@@ -141,16 +119,20 @@
                 setMessages(prev => [...prev, { id: `u-${Date.now()}`, text, sender: 'user' }]);
                 setIsThinking(true);
                 try {
-                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${activeModel}:generateContent?key=${apiKey}`, {
+                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${apiKey}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             contents: [...messages.slice(-6).map(m => ({ role: m.sender === 'user' ? 'user' : 'model', parts: [{ text: m.text }] })), { role: 'user', parts: [{ text }] }],
-                            systemInstruction: { parts: [{ text: `Du är Aura, 28 år, på dejt med ${userName}. Svara ${responseType === 'fast' ? 'kort' : 'djupt'} på svenska. Inga upprepningar.` }] }
+                            systemInstruction: { parts: [{ text: `Du är Aura, 28 år, på dejt med ${userName}. Svara ${responseType === 'fast' ? 'kort' : 'djupt'} på svenska. Inga upprepningar.` }] },
+                            generationConfig: {
+                                // Vi mappar "Thinking HIGH" från din skärmdump här
+                                thinking_config: { thinking_level: "HIGH" }
+                            }
                         })
                     });
                     const data = await res.json();
-                    if (!res.ok) throw new Error(data.error?.message || "Länkfel");
+                    if (!res.ok) throw new Error(`${data.error?.message || "Länkfel"}`);
                     const aiText = data.candidates[0].content.parts[0].text;
                     setIsThinking(false);
                     setMessages(prev => [...prev, { id: `a-${Date.now()}`, text: aiText, sender: 'ai' }]);
@@ -158,17 +140,9 @@
                     speak(aiText, currentStage);
                 } catch (e) { 
                     setIsThinking(false);
-                    setMessages(prev => [...prev, { id: `err-${Date.now()}`, text: `Neural avvikelse: ${e.message}`, sender: 'ai', isError: true }]);
+                    setMessages(prev => [...prev, { id: `err-${Date.now()}`, text: `Neural länk svajig: ${e.message}`, sender: 'ai', isError: true }]);
                 }
             };
-
-            useEffect(() => {
-                const nextStage = intimacy >= 0.8 ? 4 : intimacy >= 0.5 ? 3 : intimacy >= 0.25 ? 2 : 1;
-                if (nextStage > currentStage) {
-                    setIsTransitioning(true);
-                    setTimeout(() => { setCurrentStage(nextStage); setImageIndex(0); setIsTransitioning(false); }, 8000);
-                }
-            }, [intimacy]);
 
             return (
                 <div className="fixed inset-0 bg-black flex flex-col items-center justify-center font-sans overflow-hidden">
@@ -176,27 +150,30 @@
                     <AnimatePresence mode="wait">
                         {appState === 'greeting' && (
                             <motion.div key="greeting" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-[300] bg-black">
-                                <video src={VIDEO_LINKS.INTRO} autoPlay muted playsInline className="fixed inset-0 w-full h-full object-contain" onEnded={() => setAppState('instructions')} />
-                                <div className="absolute inset-x-0 bottom-12 flex justify-center z-[310]"><button onClick={() => setAppState('instructions')} className="bg-white/10 backdrop-blur-xl border border-white/20 text-white px-10 py-5 rounded-2xl text-[10px] font-black uppercase tracking-[0.3em]">Starta</button></div>
+                                <video src={VIDEO_LINKS.INTRO} autoPlay muted playsInline preload="auto" className="fixed inset-0 w-full h-full object-contain" onEnded={() => setAppState('instructions')} />
+                                <div className="absolute inset-x-0 bottom-12 flex justify-center z-[310]"><button onClick={() => setAppState('instructions')} className="bg-white/10 backdrop-blur-xl border border-white/20 text-white px-10 py-5 rounded-2xl text-[10px] font-black uppercase tracking-[0.3em]">Öppna Kapsel</button></div>
                             </motion.div>
                         )}
                         {appState === 'instructions' && (
-                            <motion.div key="instructions" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-[200] flex flex-col items-center justify-center p-8 text-center glass-dark">
+                            <motion.div key="instructions" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-[200] flex flex-col items-center justify-center p-8 text-center glass-dark">
                                 <div className="calibration-bg"></div>
                                 <h1 className="text-3xl font-light tracking-[0.4em] uppercase mb-10 glow-red text-white">Neural Scout</h1>
-                                <div className="w-full max-w-sm space-y-6 text-white mb-10">
-                                    <input type="text" value={userName} onChange={(e) => setUserName(e.target.value)} placeholder="Namn..." className="w-full glass-dark py-5 px-6 rounded-2xl text-center font-bold border-white/10" />
-                                    <div className="space-y-2">
-                                        <p className="text-[9px] font-black opacity-40 uppercase">Aktiv Kärna</p>
-                                        <div className="flex gap-2">
-                                            {['gemini-1.5-flash', 'gemini-1.5-pro'].map(m => (
-                                                <button key={m} onClick={() => setActiveModel(m)} className={`flex-1 py-3 rounded-xl text-[7px] font-black border transition-all ${activeModel === m ? 'bg-indigo-500 text-white border-indigo-400' : 'glass-dark opacity-40'}`}>{m.includes('flash') ? 'FLASH' : 'PRO'}</button>
+                                <div className="w-full max-w-sm space-y-6 text-white mb-10 overflow-y-auto custom-scrollbar pr-2 max-h-[60vh]">
+                                    <div className="space-y-2 text-left">
+                                        <p className="text-[9px] font-black opacity-40 uppercase tracking-widest">Identifiering</p>
+                                        <input type="text" value={userName} onChange={(e) => setUserName(e.target.value)} placeholder="Namn..." className="w-full glass-dark py-4 px-6 rounded-2xl text-center font-bold border-white/10" />
+                                    </div>
+                                    <div className="space-y-2 text-left">
+                                        <p className="text-[9px] font-black opacity-40 uppercase tracking-widest text-amber-500">Neural Kärna (Gemini 3)</p>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {['gemini-3-flash-preview', 'gemini-2.0-flash-exp', 'gemini-1.5-pro', 'gemini-1.5-flash'].map(m => (
+                                                <button key={m} onClick={() => { setActiveModel(m); setCustomModel(''); }} className={`py-3 rounded-xl text-[6px] font-black border transition-all ${activeModel === m && !customModel ? 'bg-indigo-500 text-white border-indigo-400' : 'glass-dark opacity-40'}`}>{m.toUpperCase()}</button>
                                             ))}
                                         </div>
                                     </div>
                                 </div>
-                                <button onClick={() => setAppState('main')} disabled={!userName.trim()} className="bg-white text-black px-12 py-6 rounded-2xl text-[10px] font-black uppercase tracking-[0.3em] w-full max-w-xs shadow-2xl">Initiera Länk</button>
-                                <p className="text-[9px] opacity-30 uppercase italic mt-10">Ta hand om varandra / B10M</p>
+                                <button onClick={() => setAppState('main')} disabled={!userName.trim()} className="bg-white text-black px-12 py-6 rounded-2xl text-[10px] font-black uppercase tracking-[0.3em] w-full max-w-xs shadow-2xl active:scale-95 transition-all">Initiera Länk</button>
+                                <p className="text-[9px] opacity-30 uppercase italic mt-8">Ta hand om varandra / B10M</p>
                             </motion.div>
                         )}
                         {appState === 'main' && (
@@ -204,26 +181,25 @@
                                 {isTransitioning ? (
                                     <motion.video key={`vid-${currentStage}`} src={messages.length <= 1 ? STAGES[1].video : STAGES[currentStage].nextVideo} autoPlay muted playsInline preload="auto" className="aura-media-layer video-layer video-fixed" />
                                 ) : (
-                                    <motion.img key={`img-${currentStage}-${imageIndex}`} src={STAGES[currentStage].images[imageIndex]} initial={{ opacity: 0 }} animate={{ opacity: 1, filter: isSpeaking ? "brightness(1.4)" : "brightness(1)", x: parallaxX, y: parallaxY }} transition={{ duration: 2.5 }} className="aura-media-layer" />
+                                    <motion.img key={`img-${currentStage}-${imageIndex}`} src={STAGES[currentStage].images[imageIndex]} initial={{ opacity: 0 }} animate={{ opacity: 1, filter: isSpeaking ? "brightness(1.5)" : "brightness(1)", scale: 1.05, x: parallaxX, y: parallaxY }} transition={{ duration: 2.5 }} className="aura-media-layer" />
                                 )}
                                 <div className="fixed top-0 inset-x-0 p-8 flex justify-between items-start z-[100] text-white">
-                                    <div className="flex flex-col gap-1"><span className="text-[9px] font-black opacity-30 uppercase">Neural Scout V4.3.1</span><span className="text-xs font-bold uppercase" style={{ color: STAGES[currentStage].color }}>{STAGES[currentStage].name}</span></div>
+                                    <div className="flex flex-col gap-1 text-left"><span className="text-[9px] font-black opacity-30 uppercase tracking-widest">Neural Scout V4.4.2</span><span className="text-xs font-bold uppercase" style={{ color: STAGES[currentStage].color }}>{STAGES[currentStage].name}</span></div>
                                     <div className="flex gap-2">
                                         <button onClick={() => setAppState('instructions')} className="p-4 rounded-2xl glass-dark opacity-40"><i data-lucide="settings-2" className="w-5 h-5 text-white"></i></button>
                                         <button onClick={() => setResponseType(responseType === 'fast' ? 'deep' : 'fast')} className="p-4 rounded-2xl glass-dark text-[9px] font-black uppercase text-white">{responseType === 'fast' ? 'Fast' : 'Deep'}</button>
                                     </div>
                                 </div>
-                                <VoiceAuraVFX stage={currentStage} isSpeaking={isSpeaking} />
                                 <AnimatePresence>{showText && (
                                     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="fixed bottom-36 inset-x-6 max-h-[40vh] overflow-y-auto glass-dark rounded-[2.5rem] p-8 hide-scrollbar z-50 text-white text-sm italic opacity-90">
-                                        {messages.map((m, i) => (<div key={i} className={`mb-4 ${m.sender === 'user' ? 'text-right opacity-40' : (m.isError ? 'text-red-400 font-bold text-[10px]' : 'text-left font-medium')}`}>{m.text}</div>))}
+                                        {messages.map((m, i) => (<div key={i} className={`mb-4 ${m.sender === 'user' ? 'text-right opacity-40' : (m.isError ? 'text-red-400 font-bold text-[9px] leading-relaxed' : 'text-left font-medium')}`}>{m.text}</div>))}
                                     </motion.div>
                                 )}</AnimatePresence>
                                 <div className="flex w-full max-w-lg mx-auto z-[100] gap-4 mb-8">
-                                    <button onClick={() => setShowText(!showText)} className={`p-7 glass-dark rounded-full ${showText ? 'text-white' : 'text-white/40'}`}><i data-lucide="message-square" className="w-5 h-5"></i></button>
-                                    <form onSubmit={handleSend} className="flex-1"><input type="text" value={inputText} onChange={(e) => setInputText(e.target.value)} placeholder={isThinking ? "Aura bearbetar..." : "Dela din frekvens..."} disabled={isThinking} className="w-full glass-dark py-7 px-10 rounded-full text-center text-sm text-white shadow-2xl" autoComplete="off" /></form>
+                                    <button onClick={() => setShowText(!showText)} className={`p-7 glass-dark rounded-full transition-all ${showText ? 'text-white shadow-lg shadow-indigo-500/20' : 'text-white/40'}`}><i data-lucide="message-square" className="w-5 h-5"></i></button>
+                                    <form onSubmit={handleSend} className="flex-1"><input type="text" value={inputText} onChange={(e) => setInputText(e.target.value)} placeholder={isThinking ? "Aura resonerar..." : "Dela din frekvens..."} disabled={isThinking} className="w-full glass-dark py-7 px-10 rounded-full text-center text-sm text-white shadow-2xl" autoComplete="off" /></form>
                                 </div>
-                                <div className="text-center text-[9px] opacity-10 uppercase tracking-[0.5em] mb-4 font-black italic text-white uppercase tracking-widest uppercase">Engine V4.3.1 // Architect: B10M</div>
+                                <div className="text-center text-[9px] opacity-10 uppercase tracking-[0.5em] mb-4 font-black italic text-white uppercase tracking-widest">Core: {currentModel.toUpperCase()}</div>
                             </motion.div>
                         )}
                     </AnimatePresence>
